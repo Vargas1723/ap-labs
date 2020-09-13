@@ -270,11 +270,6 @@ void analizeLog(char *logFile, char *report) {
     }
 
 
-    // Print first results
-    printf("Installed elements: [%d]\n", installed);
-    printf("Removed elements: [%d]\n", removed);
-    printf("Upgraded elements: [%d]\n", upgraded);
-    printf("Current elements: [%d]\n", installed-removed);
     // Write in the file first results
     char text1[33];
     sprintf(text1,"- Installed packages \t : %d\n",installed);
