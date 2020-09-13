@@ -183,6 +183,7 @@ void analizeLog2(char *logFile, int lines,char *report){
     memset(text4,0,70);
   }
   close(dest);
+  free(oper1);
 }
 
 void analizeLog(char *logFile, char *report) {
