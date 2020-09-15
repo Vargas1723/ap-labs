@@ -293,7 +293,6 @@ void analizeLog(char *logFile, char *report) {
     write(destination,text2,numberElements(text2));
     write(destination,text3,numberElements(text3));
     write(destination,text4,numberElements(text4));
-
     printf("Report is generated at: [%s]\n", report);
     // Close files
     free(oper1);
