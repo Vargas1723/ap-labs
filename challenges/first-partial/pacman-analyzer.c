@@ -2,21 +2,25 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define REPORT_FILE "packages_report.txt"
 
 typedef struct s{
-  char date[16];
+  char date[24];
+  int datesize;
   char manager[14];
   char operation[150];
   char name[20];
 } Oper;
 typedef struct {
   char name[20];
-  char installDate[16];
-  char lastUpdate[16];
+  char installDate[24];
+  char lastUpdate[24];
   int updates;
-  char removalDate[16];
+  int datesize;
+  bool removed;
+  char removalDate[24];
 } Package;
 
 void analizeLog(char *logFile, char *report);
@@ -98,7 +102,8 @@ void analizeLog2(char *logFile, int lines,char *report){
       else if(strstr(oper1->manager, "ALPM") != NULL && strstr(oper1->operation,"installed") != NULL){
         int i;
         for(int i=0;i<20;i++) packages[count].name[i]=oper1->name[i];
-        for(int i=0;i<16;i++) packages[count].installDate[i]=oper1->date[i];
+        for(int i=0;i<24;i++) packages[count].installDate[i]=oper1->date[i];
+        packages[count].datesize=oper1->datesize;
         packages[count].updates=0;
         count++;
       }
@@ -109,7 +114,7 @@ void analizeLog2(char *logFile, int lines,char *report){
             int j;
 
             packages[i].updates += 1;
-            for(int j=0;j<16;j++) packages[i].lastUpdate[j]=oper1->date[j];
+            for(int j=0;j<24;j++) packages[i].lastUpdate[j]=oper1->date[j];
           }
         }
       }
@@ -118,7 +123,8 @@ void analizeLog2(char *logFile, int lines,char *report){
         for(i = 0;i < count;i++){
           if(compareArray(packages[i].name,oper1->name,20) == 1){
             int j;
-            for(int j=0;j<16;j++) packages[i].removalDate[j]=oper1->date[j];
+            for(int j=0;j<24;j++) packages[i].removalDate[j]=oper1->date[j];
+            packages[i].removed=true;
           }
         }
       }
@@ -126,9 +132,8 @@ void analizeLog2(char *logFile, int lines,char *report){
       memset(oper1->manager,0,14);
       memset(oper1->operation,0,150);
     }
-
     else if( brackets == 1){
-      if(date<16) oper1->date[date++]=buffer;
+      oper1->date[date++]=buffer;
     }
     else if( brackets == 3){
       oper1->manager[manager++]=buffer;
@@ -138,9 +143,7 @@ void analizeLog2(char *logFile, int lines,char *report){
       if(buffer==' ') space++;
       else if(space == 2){
         if(name<20)oper1->name[name++]=buffer;
-
       }
-
     }
   }
   close(src);
@@ -162,20 +165,41 @@ void analizeLog2(char *logFile, int lines,char *report){
 
   for(int i = 0;i<lines;i++){
     sprintf(text,"\n- Package Name : %.20s",packages[i].name);
-    sprintf(text1,"\n - Install date \t: %.16s",packages[i].installDate);
-    sprintf(text2,"\n - Last update date \t : %.16s",packages[i].lastUpdate);
+    if(packages[0].datesize==16){
+      sprintf(text1,"\n - Install date \t: %.16s",packages[i].installDate);
+    }
+    else{
+      sprintf(text1,"\n - Install date \t: %.24s",packages[i].installDate);
+    }
+
+    if(packages[i].updates == 0){
+      sprintf(text2,"\n - Last update date \t : -");
+    }
+    else {
+      if(packages[0].datesize==16){
+        sprintf(text2,"\n - Last update date \t : %.16s",packages[i].lastUpdate);
+      }
+      else{
+        sprintf(text2,"\n - Last update date \t : %.24s",packages[i].lastUpdate);
+      }
+    }
     sprintf(text3,"\n - How many updates \t : %d",packages[i].updates);
-    sprintf(text4,"\n - Removal date \t : %.16s",packages[i].removalDate);
-
-    //printf("%.16s\n", packages[i].lastUpdate);
-
+    if(packages[i].removed == true){
+      if(packages[0].datesize==16){
+        sprintf(text4,"\n - Removal date \t : %.16s",packages[i].removalDate);
+      }
+      else {
+        sprintf(text4,"\n - Removal date \t : %.24s",packages[i].removalDate);
+      }
+    }
+    else {
+      sprintf(text4,"\n - Removal date \t : -");
+    }
     write(dest,text,numberElements(text));
     write(dest,text1,numberElements(text1));
     write(dest,text2,numberElements(text2));
     write(dest,text3,numberElements(text3));
     write(dest,text4,numberElements(text4));
-
-
     memset(text,0,70);
     memset(text1,0,70);
     memset(text2,0,70);
@@ -198,7 +222,6 @@ void analizeLog(char *logFile, char *report) {
     int removed = 0;
     int upgraded = 0;
     // Reader variables
-    int date = 0;
     int manager = 0;
     int operation = 0;
     int brackets = 0;
@@ -206,7 +229,6 @@ void analizeLog(char *logFile, char *report) {
     int name = 0;
     Oper *oper1;
     oper1 = (Oper *)malloc(sizeof(Oper));
-
     // Open read only file
     src = open(logFile, O_RDONLY);
     if(src < 0){
@@ -223,15 +245,11 @@ void analizeLog(char *logFile, char *report) {
       if(buffer == '[') brackets++;
       else if(buffer == ']') brackets++;
       else if(buffer == '\n') {
-        date = 0;
         manager = 0;
         operation = 0;
         brackets = 0;
         space = 0;
         name = 0;
-
-        //printf("\n%s", oper1->date);
-
         if(strstr(oper1->manager, "ALPM") != NULL && strstr(oper1->operation,"reinstalled") != NULL){
           reinstalled++;
         }
@@ -245,15 +263,9 @@ void analizeLog(char *logFile, char *report) {
           removed++;
         }
         memset(oper1->name,0,20);
-        memset(oper1->date,0,16);
+        memset(oper1->date,0,24);
         memset(oper1->manager,0,14);
         memset(oper1->operation,0,150);
-      }
-
-      else if( brackets == 1){
-        if(date<16){
-          oper1->date[date++]=buffer;
-        }
       }
       else if( brackets == 3){
         oper1->manager[manager++]=buffer;
@@ -263,13 +275,9 @@ void analizeLog(char *logFile, char *report) {
         if(buffer==' ') space++;
         else if(space == 2){
           if(name<20)oper1->name[name++]=buffer;
-
         }
-
       }
     }
-
-
     // Write in the file first results
     char text1[33];
     sprintf(text1,"- Installed packages \t : %d\n",installed);
