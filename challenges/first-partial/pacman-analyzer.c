@@ -27,7 +27,6 @@ void analizeLog(char *logFile, char *report);
 void analizeLog2(char *logFile, int lines,char *report);
 
 int main(int argc, char **argv) {
-
     if (argc < 2) {
 	     printf("Usage:./pacman-analizer.o \n");
 	      return 0;
@@ -40,8 +39,6 @@ int main(int argc, char **argv) {
       printf("Wrong parameters\n");
       return 0;
     }
-
-
     return 0;
 }
 int numberElements(char array[]){
@@ -65,7 +62,6 @@ void analizeLog2(char *logFile, int lines,char *report){
   int count = 0;
   // Files variables
   int src;
-
   char buffer;
   // Reader variables
   int date = 0;
@@ -76,7 +72,6 @@ void analizeLog2(char *logFile, int lines,char *report){
   int name = 0;
   Oper *oper1;
   oper1 = (Oper *)malloc(sizeof(Oper));
-
   // Open read only file
   src = open(logFile, O_RDONLY);
   if(src < 0){
@@ -94,7 +89,6 @@ void analizeLog2(char *logFile, int lines,char *report){
       brackets = 0;
       space = 0;
       name = 0;
-
 
       if(strstr(oper1->manager, "ALPM") != NULL && strstr(oper1->operation,"reinstalled") != NULL){
 
@@ -147,7 +141,6 @@ void analizeLog2(char *logFile, int lines,char *report){
     }
   }
   close(src);
-
   int dest;
   if((dest=open(report,O_RDWR))<0){
     printf("Can not be open: %s\n",report);
@@ -155,14 +148,12 @@ void analizeLog2(char *logFile, int lines,char *report){
   lseek(dest,0,SEEK_END);
   write(dest,"List of Packages\n",17);
   write(dest,"----------------------\n",23);
-
   int i;
   char text[70];
   char text1[70];
   char text2[90];
   char text3[70];
   char text4[70];
-
   for(int i = 0;i<lines;i++){
     sprintf(text,"\n- Package Name : %.20s",packages[i].name);
     if(packages[0].datesize==16){
@@ -209,7 +200,6 @@ void analizeLog2(char *logFile, int lines,char *report){
   close(dest);
   free(oper1);
 }
-
 void analizeLog(char *logFile, char *report) {
     printf("Generating Report from: [%s] log file\n", logFile);
     // Files variables
