@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
 	      return 0;
     }
     if(strcmp(argv[1],"-input")==0){
-      analizeLog(argv[2], argv[3]);
+      analizeLog(argv[2], argv[4]);
     }
     else {
       printf("Usage:./pacman-analizer.o \n");
