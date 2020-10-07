@@ -6,37 +6,28 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <ftw.h>
+#include <string.h>
 #include "logger.h"
 
 #define BUFFER_LENGTH sizeof(struct inotify_event) * 1024
 
 struct inotify_event *event;
+struct directory {
+  int wd;
+  int level;
+  char *filePath;
+  struct directory *nextDirectory;
+};
+static struct directory *firstDirectory;
 
 char *b;
-int fd, wd, rd;
+int fd, rd;
 
-// FALTA
-// soportar actualizaciones, eliminar o agregar directorios
-// agregar arreglo the paths
-// detectar si es normal file or directory
-static int display_info(const char *fpath, const struct stat *sb,
-             int tflag, struct FTW *ftwbuf)
-{
-  if(tflag == FTW_D){
-    inotify_add_watch(fd, fpath,IN_ALL_EVENTS);
-    printf("%-3s %2d %7jd   %-40s %d %s\n",
-        (tflag == FTW_D) ?   "d"   : (tflag == FTW_DNR) ? "dnr" :
-        (tflag == FTW_DP) ?  "dp"  : (tflag == FTW_F) ?   "f" :
-        (tflag == FTW_NS) ?  "ns"  : (tflag == FTW_SL) ?  "sl" :
-        (tflag == FTW_SLN) ? "sln" : "???",
-        ftwbuf->level, (intmax_t) sb->st_size,
-        fpath, ftwbuf->base, fpath + ftwbuf->base);
-
-  }
-  return 0;           /* To tell nftw() to continue */
-}
-
-
+static int monitorDirectories(const char *fpath, const struct stat *sb, int tflag, struct FTW *ftwbuf);
+static int isDirectory(char *path);
+static char *completePath(char *path, char *file);
+static int addDirectoryPath(const char *dir, int level);
+static struct directory *getDirectory(int wd);
 
 int main(int argc, char** argv){
   // Place your magic here
@@ -55,8 +46,7 @@ int main(int argc, char** argv){
   infof("----------------------------------------------------------\n");
 
   fd = inotify_init1(O_NONBLOCK);
-  //wd = inotify_add_watch(fd, argv[1],IN_ALL_EVENTS);
-  if (nftw((argc < 2) ? "." : argv[1], display_info, 20, 0)
+  if (nftw((argc < 2) ? "." : argv[1], monitorDirectories, 20, 0)
            == -1) {
        errorf("nftw");
    }
@@ -70,17 +60,73 @@ int main(int argc, char** argv){
     for(b = buffer; b < buffer + rd; ){
       event = (struct inotify_event*)buffer;
 
-      if(event -> mask & IN_CREATE) warnf("- [File - Create] - %s\n",event -> name);
-      else if(event -> mask & IN_OPEN) warnf("- [File - Open] - %s\n",event -> name);
-      else if(event -> mask & IN_MODIFY) panicf("- [File - Modify] - %s\n",event -> name);
-      else if(event -> mask & IN_ACCESS) infof("- [File - Access] - %s\n",event -> name);
-      else if(event -> mask & IN_DELETE) errorf("- [File - Delete] - %s\n",event -> name);
+      struct directory *dir;
+      dir = getDirectory(event->wd);
+
+      char *path = completePath(dir->filePath,event->name);
+      int isDirect = isDirectory(path);
+      char *type = isDirect ? "Directory" : "File";
+
+      if(event -> mask & IN_CREATE)
+      {
+        addDirectoryPath(path,1);
+        warnf("- [%s - Create] - %s\n",type,path);
+      }
+      else if(event -> mask & IN_OPEN) warnf("- [%s - Open] - %s\n",type,path);
+      else if(event -> mask & IN_MODIFY) panicf("- [%s - Modify] - %s\n",type,path);
+      else if(event -> mask & IN_DELETE) errorf("- [%s - Delete] - %s\n",type,path);
 
       b += sizeof(struct inotify_event) + event->len;
     }
   }
   close(fd);
   return 0;
-
-
+}
+static int monitorDirectories(const char *fpath, const struct stat *sb, int tflag, struct FTW *ftwbuf)
+{
+  if(tflag == FTW_D){
+    //inotify_add_watch(fd, fpath,IN_ALL_EVENTS);
+    addDirectoryPath(fpath,ftwbuf->level);
+  }
+  return 0;           /* To tell nftw() to continue */
+}
+// Know if the file is a directory
+static int isDirectory(char *path)
+{
+  struct stat path_stat;
+  return stat(path, &path_stat) == 0 && S_ISDIR(path_stat.st_mode);
+}
+// Mix path of current firectory with filename
+static char * completePath(char *path,char *file)
+{
+  char *complete = malloc(strlen(path)+strlen(file)+2);
+  strcpy(complete,path);
+  strcat(complete,"/");
+  strcat(complete,file);
+  return complete;
+}
+// Add the path to the List and add to watch the directory
+static int addDirectoryPath(const char *dir, int level)
+{
+  int wd;
+  if((wd = inotify_add_watch(fd,dir,IN_ALL_EVENTS)) == -1) return -1;
+  struct directory *newDirectory = malloc(sizeof(struct directory));
+  newDirectory->wd = wd;
+  newDirectory->level = level;
+  newDirectory->filePath = malloc(strlen(dir)+1);
+  strcpy(newDirectory->filePath,dir);
+  newDirectory->nextDirectory = firstDirectory;
+  firstDirectory = newDirectory;
+  return 0;
+}
+// Find the path of the event filename
+static struct directory *getDirectory(int wd)
+{
+  struct directory *current = firstDirectory;
+  while(current != NULL)
+  {
+    if (current->wd == wd) return current;
+    current = current->nextDirectory;
+  }
+  return NULL;
 }
