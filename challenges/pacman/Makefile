@@ -1,2 +1,10 @@
+ENEMIES = 1
 
-include ../../common.mk
+build:
+	go build
+
+run: build
+	./MultithreadedPacman -n $(ENEMIES)
+
+clean:
+	rm ./MultithreadedPacman
